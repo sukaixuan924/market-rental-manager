@@ -1,61 +1,74 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Stall } from '@/types'
-
-// 本地存储 key
-const STORAGE_KEY = 'market_stalls'
+import { stallAPI } from '@/services/api'
 
 export const useStallStore = defineStore('stall', () => {
   const stalls = ref<Stall[]>([])
+  const loading = ref(false)
 
-  // 从本地加载
-  const loadStalls = () => {
+  // 加载位置
+  const loadStalls = async () => {
+    loading.value = true
     try {
-      const data = localStorage.getItem(STORAGE_KEY)
-      if (data) {
-        stalls.value = JSON.parse(data)
-      }
+      const data = await stallAPI.getAll()
+      // 转换字段名
+      stalls.value = data.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        area: s.area,
+        defaultPrice: parseFloat(s.default_price),
+        longTermPrice: parseFloat(s.long_term_price),
+        status: s.status,
+        createdAt: s.created_at
+      }))
     } catch (e) {
       console.error('加载位置失败:', e)
+    } finally {
+      loading.value = false
     }
-  }
-
-  // 保存到本地
-  const saveStalls = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stalls.value))
   }
 
   // 添加位置
-  const addStall = (stall: Omit<Stall, 'id' | 'createdAt'>) => {
-    const newStall: Stall = {
-      ...stall,
-      id: generateId(),
-      createdAt: new Date().toISOString()
+  const addStall = async (stall: Omit<Stall, 'id' | 'createdAt'>) => {
+    try {
+      const result = await stallAPI.create({
+        name: stall.name,
+        area: stall.area,
+        defaultPrice: stall.defaultPrice,
+        longTermPrice: stall.longTermPrice,
+        status: stall.status
+      })
+      // 更新本地
+      await loadStalls()
+      return result
+    } catch (e) {
+      console.error('添加位置失败:', e)
+      throw e
     }
-    stalls.value.push(newStall)
-    saveStalls()
-    return newStall
   }
 
   // 更新位置
-  const updateStall = (id: string, data: Partial<Stall>) => {
+  const updateStall = async (id: string, data: Partial<Stall>) => {
     const index = stalls.value.findIndex(s => s.id === id)
     if (index !== -1) {
       stalls.value[index] = { ...stalls.value[index], ...data }
-      saveStalls()
     }
   }
 
   // 删除位置
-  const deleteStall = (id: string) => {
-    stalls.value = stalls.value.filter(s => s.id !== id)
-    saveStalls()
+  const deleteStall = async (id: string) => {
+    try {
+      await stallAPI.delete(id)
+      stalls.value = stalls.value.filter(s => s.id !== id)
+    } catch (e) {
+      console.error('删除位置失败:', e)
+      throw e
+    }
   }
 
   // 按ID获取位置
-  const getStallById = (id: string) => {
-    return stalls.value.find(s => s.id === id)
-  }
+  const getStallById = (id: string) => stalls.value.find(s => s.id === id)
 
   // 按区域分组
   const stallsByArea = computed(() => {
@@ -68,11 +81,9 @@ export const useStallStore = defineStore('stall', () => {
     return groups
   })
 
-  // 初始化
-  loadStalls()
-
   return {
     stalls,
+    loading,
     stallsByArea,
     loadStalls,
     addStall,
@@ -81,8 +92,3 @@ export const useStallStore = defineStore('stall', () => {
     getStallById
   }
 })
-
-// 生成唯一ID
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
-}

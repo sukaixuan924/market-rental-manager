@@ -10,26 +10,36 @@ const rentalStore = useRentalStore()
 const currentYear = ref(dayjs().year())
 const currentMonth = ref(dayjs().month() + 1)
 
-// 获取本月统计
+// 本月统计
 const monthStats = computed(() => {
-  return rentalStore.getMonthStats(currentYear.value, currentMonth.value)
-})
-
-// 获取历史记录统计
-const allTimeStats = computed(() => {
-  let totalIncome = 0
-  let totalRecords = 0
-  let paidRecords = 0
-  let longTermRecords = 0
-
-  rentalStore.records.forEach((r: any) => {
-    totalRecords++
-    if (r.paymentStatus === 'paid') paidRecords++
-    if (r.rentalType === 'long-term') longTermRecords++
-    totalIncome += r.rentAmount
+  const year = currentYear.value
+  const month = currentMonth.value
+  const monthRecords = rentalStore.records.filter(r => {
+    if (r.rentalType === 'daily') {
+      const d = new Date(r.date)
+      return d.getFullYear() === year && d.getMonth() + 1 === month
+    } else {
+      const start = new Date(r.startDate)
+      const end = new Date(r.endDate)
+      const monthStart = new Date(year, month - 1, 1)
+      const monthEnd = new Date(year, month, 0)
+      return start <= monthEnd && end >= monthStart
+    }
   })
-
-  return { totalIncome, totalRecords, paidRecords, longTermRecords }
+  
+  let totalIncome = 0
+  let paidCount = 0
+  let unpaidCount = 0
+  let longTermCount = 0
+  
+  monthRecords.forEach(r => {
+    totalIncome += r.rentAmount
+    if (r.paymentStatus === 'paid') paidCount++
+    else unpaidCount++
+    if (r.rentalType === 'long-term') longTermCount++
+  })
+  
+  return { totalIncome, paidCount, unpaidCount, longTermCount }
 })
 
 // 年份选择
@@ -45,22 +55,33 @@ const months = Array.from({ length: 12 }, (_, i) => i + 1)
 const stallStats = computed(() => {
   return stallStore.stalls.map(stall => {
     const records = rentalStore.getRecordsByStallId(stall.id)
-    const thisMonthRecords = rentalStore.getRecordsByStallAndMonth(stall.id, currentYear.value, currentMonth.value)
+    const thisMonthRecords = records.filter(r => {
+      if (r.rentalType === 'daily') {
+        const d = new Date(r.date)
+        return d.getFullYear() === currentYear.value && d.getMonth() + 1 === currentMonth.value
+      } else {
+        const start = new Date(r.startDate)
+        const end = new Date(r.endDate)
+        const monthStart = new Date(currentYear.value, currentMonth.value - 1, 1)
+        const monthEnd = new Date(currentYear.value, currentMonth.value, 0)
+        return start <= monthEnd && end >= monthStart
+      }
+    })
     
     let monthIncome = 0
-    thisMonthRecords.forEach(r => {
-      monthIncome += r.rentAmount
+    thisMonthRecords.forEach(r => monthIncome += r.rentAmount)
+    
+    const today = dayjs().format('YYYY-MM-DD')
+    const isRented = records.some(r => {
+      if (r.rentalType === 'daily') return r.date === today
+      return today >= r.startDate && today <= r.endDate
     })
-
+    
     return {
       stall,
       totalRecords: records.length,
       monthIncome,
-      isRented: records.some(r => {
-        const today = dayjs().format('YYYY-MM-DD')
-        if (r.rentalType === 'daily') return r.date === today
-        return today >= r.startDate && today <= r.endDate
-      })
+      isRented
     }
   })
 })
@@ -72,36 +93,19 @@ const recentRecords = computed(() => {
     .slice(0, 10)
 })
 
-// 导出数据
-const exportData = () => {
-  const data = JSON.stringify(rentalStore.records, null, 2)
-  const blob = new Blob([data], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `market-rental-${dayjs().format('YYYY-MM-DD')}.json`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-// 清除数据
-const clearData = async () => {
-  if (confirm('确定要清除所有数据吗？此操作不可恢复！')) {
-    localStorage.removeItem('market_rentals')
-    localStorage.removeItem('market_stalls')
-    location.reload()
-  }
-}
+// 加载数据
+onMounted(async () => {
+  await Promise.all([
+    stallStore.loadStalls(),
+    rentalStore.loadRecords()
+  ])
+})
 </script>
 
 <template>
   <div class="stats-view">
     <div class="page-header">
       <h2>数据统计</h2>
-      <div class="header-actions">
-        <el-button @click="exportData">导出数据</el-button>
-        <el-button type="danger" plain @click="clearData">清除数据</el-button>
-      </div>
     </div>
 
     <!-- 月份选择 -->
@@ -230,11 +234,6 @@ const clearData = async () => {
 
 .page-header h2 {
   margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: 10px;
 }
 
 .month-selector {

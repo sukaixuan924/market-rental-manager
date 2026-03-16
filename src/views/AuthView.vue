@@ -29,7 +29,7 @@ const handleSubmit = async () => {
 
   try {
     if (isLogin.value) {
-      const result = authStore.login(username.value, password.value)
+      const result = await authStore.login(username.value, password.value)
       if (result.success) {
         ElMessage.success(result.message)
         router.push('/')
@@ -37,7 +37,7 @@ const handleSubmit = async () => {
         ElMessage.error(result.message)
       }
     } else {
-      const result = authStore.register(username.value, password.value, nickname.value)
+      const result = await authStore.register(username.value, password.value, nickname.value)
       if (result.success) {
         ElMessage.success(result.message)
         router.push('/')
@@ -124,7 +124,6 @@ const switchMode = () => {
         <a href="#" @click.prevent="switchMode">{{ isLogin ? '立即注册' : '立即登录' }}</a>
       </div>
 
-      <!-- 演示账号提示 -->
       <div class="demo-tip" v-if="isLogin">
         <el-alert title="演示账号: admin / admin123" type="info" :closable="false" />
       </div>

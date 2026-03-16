@@ -35,4 +35,7 @@ declare module 'vue' {
     StallForm: typeof import('./src/components/StallForm.vue')['default']
     VoiceInput: typeof import('./src/components/VoiceInput.vue')['default']
   }
+  export interface ComponentCustomProperties {
+    vLoading: typeof import('element-plus/es')['ElLoadingDirective']
+  }
 }

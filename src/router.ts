@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -38,33 +37,48 @@ const router = createRouter({
       name: 'users',
       component: () => import('@/views/UserManagementView.vue'),
       meta: { requiresAuth: true, requiresAdmin: true }
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/'
     }
   ]
 })
 
-// 路由守卫
-router.beforeEach((to, from, next) => {
-  const authStore = useAuthStore()
-  
-  // 需要登录的页面
-  if (to.meta.requiresAuth && !authStore.token) {
-    next({ name: 'login' })
-    return
+// 路由守卫 - 延迟获取store避免初始化问题
+router.beforeEach(async (to, from, next) => {
+  try {
+    // 动态导入store避免初始化顺序问题
+    const { useAuthStore } = await import('@/stores/auth')
+    const authStore = useAuthStore()
+    
+    // 需要登录的页面
+    if (to.meta.requiresAuth && !authStore.token) {
+      next({ name: 'login' })
+      return
+    }
+    
+    // 需要管理员权限的页面
+    if (to.meta.requiresAdmin && !authStore.isAdmin) {
+      next({ name: 'home' })
+      return
+    }
+    
+    // 已登录用户访问登录页
+    if (to.name === 'login' && authStore.token) {
+      next({ name: 'home' })
+      return
+    }
+    
+    next()
+  } catch (e) {
+    // 如果store未初始化，重定向到登录页
+    if (to.meta.requiresAuth) {
+      next({ name: 'login' })
+    } else {
+      next()
+    }
   }
-  
-  // 需要管理员权限的页面
-  if (to.meta.requiresAdmin && !authStore.isAdmin) {
-    next({ name: 'home' })
-    return
-  }
-  
-  // 已登录用户访问登录页
-  if (to.name === 'login' && authStore.token) {
-    next({ name: 'home' })
-    return
-  }
-  
-  next()
 })
 
 export default router

@@ -31,8 +31,24 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(USERS_KEY, JSON.stringify(users))
   }
 
-  // 初始化 - 检查是否已登录
+  // 初始化 - 检查是否已登录 + 初始化管理员账号
   const init = () => {
+    // 确保管理员账号存在
+    const users = getUsers()
+    if (!users.find(u => u.username === 'admin')) {
+      users.push({
+        id: 'admin001',
+        username: 'admin',
+        passwordHash: simpleHash('admin123'),
+        nickname: '管理员',
+        role: 'admin',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        lastLoginAt: ''
+      })
+      saveUsers(users)
+    }
+    
     const authData = localStorage.getItem(AUTH_KEY)
     if (authData) {
       const auth = JSON.parse(authData)

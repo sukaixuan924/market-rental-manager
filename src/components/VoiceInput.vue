@@ -70,7 +70,7 @@ const startRecording = () => {
     timer = window.setInterval(() => {
       recordingTime.value++
       // 最长60秒
-      if (recording.value >= 60) {
+      if (recordingTime.value >= 60) {
         stopRecording()
       }
     }, 1000)

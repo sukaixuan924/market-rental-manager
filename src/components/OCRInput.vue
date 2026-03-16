@@ -45,7 +45,7 @@ const handleFileChange = async (event: Event) => {
     
     // 调用腾讯云OCR（需要在服务端配置密钥）
     // 这里先实现本地模拟 + 实际API调用
-    const result = await callOCR API(base64)
+    const result = await callOCRAPI(base64)
     
     if (result.success) {
       // 合并到现有文本

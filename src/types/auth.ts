@@ -1,5 +1,5 @@
-# 用户表（本地存储模拟）
-interface User {
+// 用户表（本地存储模拟）
+export interface User {
   id: string;
   username: string;
   passwordHash: string;
@@ -11,7 +11,7 @@ interface User {
 }
 
 // 用户认证状态
-interface AuthState {
+export interface AuthState {
   currentUser: User | null;
   isLoggedIn: boolean;
   token: string | null;

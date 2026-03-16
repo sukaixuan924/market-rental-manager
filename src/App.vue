@@ -2,11 +2,13 @@
 import { ref, onMounted, computed } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { 
-  HomeFilled, Calendar, DataAnalysis, Setting 
+  HomeFilled, Calendar, DataAnalysis, Setting, User, SwitchButton
 } from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 // 检测是否为移动端
 const isMobile = ref(window.innerWidth < 768)
@@ -30,6 +32,17 @@ const mobileTabs = [
   { name: 'stats', label: '统计', icon: DataAnalysis },
   { name: 'settings', label: '设置', icon: Setting }
 ]
+
+// 登出
+const handleLogout = () => {
+  authStore.logout()
+  router.push('/login')
+}
+
+// 跳转到用户管理
+const goToUserManagement = () => {
+  router.push('/users')
+}
 </script>
 
 <template>
@@ -51,6 +64,25 @@ const mobileTabs = [
           <el-icon><Setting /></el-icon> 设置
         </router-link>
       </nav>
+      <div class="user-area">
+        <el-dropdown v-if="authStore.currentUser">
+          <span class="user-info">
+            <el-icon><User /></el-icon>
+            {{ authStore.currentUser.nickname }}
+            <el-tag v-if="authStore.isAdmin" size="small" type="danger">管理员</el-tag>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-if="authStore.isAdmin" @click="goToUserManagement">
+                <el-icon><User /></el-icon> 用户管理
+              </el-dropdown-item>
+              <el-dropdown-item @click="handleLogout">
+                <el-icon><SwitchButton /></el-icon> 退出登录
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </header>
 
     <!-- 主内容区 -->
@@ -144,6 +176,24 @@ body {
 .nav-link.active {
   background: rgba(255,255,255,0.25);
   color: white;
+}
+
+.user-area {
+  color: white;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: background 0.3s;
+}
+
+.user-info:hover {
+  background: rgba(255,255,255,0.15);
 }
 
 /* 移动端样式 */

@@ -2,7 +2,10 @@
 import { ref, watch, computed } from 'vue'
 import { useStallStore } from '@/stores/stall'
 import { RENTAL_TYPES, type RentalRecord } from '@/types'
+import { useAuthStore } from '@/stores/auth'
 import dayjs from 'dayjs'
+import VoiceInput from '@/components/VoiceInput.vue'
+import OCRInput from '@/components/OCRInput.vue'
 
 const props = defineProps<{
   record?: RentalRecord | null
@@ -16,6 +19,7 @@ const emit = defineEmits<{
 }>()
 
 const stallStore = useStallStore()
+const authStore = useAuthStore()
 
 const form = ref({
   stallId: '',
@@ -77,11 +81,38 @@ watch(() => form.value.rentalType, () => {
   form.value.rentAmount = defaultPrice.value
 })
 
+// 语音输入更新
+const handleVoiceInput = (text: string) => {
+  form.value.renterName = text
+}
+
+// OCR输入更新
+const handleOCRInput = (text: string) => {
+  // OCR识别后尝试解析
+  // 格式可能是 "张三 烧烤 50元"
+  const parts = text.split(/[\s,，]+/)
+  if (parts.length >= 1) {
+    form.value.renterName = parts[0]
+  }
+  if (parts.length >= 2) {
+    // 尝试匹配经营类型
+    const type = RENTAL_TYPES.find(t => text.includes(t))
+    if (type) {
+      form.value.rentalTypeName = type
+    }
+  }
+}
+
 const handleSubmit = () => {
   if (!form.value.stallId) return
   if (!form.value.renterName.trim()) return
   
   const data: any = { ...form.value }
+  
+  // 添加用户ID
+  if (authStore.currentUser) {
+    data.userId = authStore.currentUser.id
+  }
   
   // 如果是日租，删除长租字段
   if (data.rentalType === 'daily') {
@@ -152,7 +183,16 @@ const handleSubmit = () => {
     </template>
 
     <el-form-item label="租客" required>
-      <el-input v-model="form.renterName" placeholder="请输入租客姓名或微信名" />
+      <div class="renter-input">
+        <el-input 
+          v-model="form.renterName" 
+          placeholder="请输入租客姓名或微信名" 
+        />
+        <div class="input-tools">
+          <VoiceInput v-model="form.renterName" />
+          <OCRInput v-model="form.renterName" />
+        </div>
+      </div>
     </el-form-item>
 
     <el-form-item label="经营类型">
@@ -199,5 +239,17 @@ const handleSubmit = () => {
 .unit {
   margin-left: 10px;
   color: #999;
+}
+
+.renter-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.input-tools {
+  display: flex;
+  gap: 8px;
 }
 </style>

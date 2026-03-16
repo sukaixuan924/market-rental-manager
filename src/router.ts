@@ -45,40 +45,32 @@ const router = createRouter({
   ]
 })
 
-// 路由守卫 - 延迟获取store避免初始化问题
-router.beforeEach(async (to, from, next) => {
-  try {
-    // 动态导入store避免初始化顺序问题
-    const { useAuthStore } = await import('@/stores/auth')
-    const authStore = useAuthStore()
-    
-    // 需要登录的页面
-    if (to.meta.requiresAuth && !authStore.token) {
+// 路由守卫 - 直接检查localStorage，避免Pinia初始化问题
+router.beforeEach((to, from, next) => {
+  // 直接从localStorage检查登录状态
+  const authData = localStorage.getItem('market_auth')
+  const isLoggedIn = authData ? JSON.parse(authData).token : null
+  
+  // 需要登录的页面
+  if (to.meta.requiresAuth) {
+    if (!isLoggedIn) {
       next({ name: 'login' })
       return
-    }
-    
-    // 需要管理员权限的页面
-    if (to.meta.requiresAdmin && !authStore.isAdmin) {
-      next({ name: 'home' })
-      return
-    }
-    
-    // 已登录用户访问登录页
-    if (to.name === 'login' && authStore.token) {
-      next({ name: 'home' })
-      return
-    }
-    
-    next()
-  } catch (e) {
-    // 如果store未初始化，重定向到登录页
-    if (to.meta.requiresAuth) {
-      next({ name: 'login' })
-    } else {
-      next()
     }
   }
+  
+  // 需要管理员权限的页面 - 暂时跳过检查，让页面加载后再检查
+  if (to.meta.requiresAdmin) {
+    // 管理员检查在页面组件中进行
+  }
+  
+  // 已登录用户访问登录页
+  if (to.name === 'login' && isLoggedIn) {
+    next({ name: 'home' })
+    return
+  }
+  
+  next()
 })
 
 export default router

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import Tesseract from 'tesseract.js'
 
 const props = defineProps<{
   modelValue: string
@@ -47,7 +46,7 @@ const handleCameraChange = async (event: Event) => {
   setTimeout(() => { if (cameraInput.value) cameraInput.value.value = '' }, 1000)
 }
 
-// 处理图片 - 使用Tesseract.js本地OCR
+// 处理图片 - 调用腾讯云OCR API
 const processImage = async (file: File) => {
   if (!file.type.startsWith('image/')) {
     ElMessage.warning('请选择图片文件')
@@ -65,46 +64,63 @@ const processImage = async (file: File) => {
     // 读取图片为base64
     const base64 = await fileToBase64(file)
     
-    // 使用Tesseract.js进行OCR识别
-    const result = await Tesseract.recognize(base64, 'chi_sim+eng', {
-      logger: (m) => {
-        if (m.status === 'recognizing text') {
-          progress.value = Math.round(m.progress * 100)
-        }
+    // 调用腾讯云OCR API
+    const result = await callTencentOCR(base64)
+    
+    if (result.success && result.parsed) {
+      // 直接使用后端解析结果
+      const parsed = result.parsed
+      
+      // 填入租客姓名
+      if (parsed.name) {
+        emit('update:modelValue', parsed.name)
       }
-    })
-
-    const text = result.data.text.trim()
-    
-    if (!text) {
+      
+      // 发送完整解析结果
+      emit('ocr-result', parsed)
+      
+      ElMessage.success(`识别成功: ${parsed.name || '未知'} - ¥${parsed.amount || '0'}`)
+    } else if (result.success && result.texts && result.texts.length > 0) {
+      // 兼容：后端没有返回parsed时使用前端解析
+      const parsed = parseOCRText(result.texts.join(' '))
+      
+      if (parsed.name) {
+        emit('update:modelValue', parsed.name)
+      }
+      emit('ocr-result', parsed)
+      ElMessage.success(`识别成功: ${parsed.name || '未知'} - ¥${parsed.amount || '0'}`)
+    } else if (result.texts && result.texts.length === 0) {
       ElMessage.warning('未识别到文字，请换一张更清晰的图片')
-      return
+    } else {
+      ElMessage.error(result.message || '识别失败')
     }
-
-    // 解析识别结果
-    const parsed = parseOCRText(text)
-    
-    // 填入租客姓名
-    if (parsed.name) {
-      emit('update:modelValue', parsed.name)
-    }
-    
-    // 发送完整解析结果
-    emit('ocr-result', parsed)
-    
-    ElMessage.success(`识别成功: ${parsed.name || '未知'} - ¥${parsed.amount || '0'}`)
   } catch (e: any) {
     console.error('OCR识别错误:', e)
-    ElMessage.error('识别失败，请换一张图片重试')
+    ElMessage.error('识别失败，请重试')
   } finally {
     loading.value = false
     progress.value = 0
   }
 }
 
+// 调用腾讯云OCR API
+const callTencentOCR = async (base64Image: string): Promise<any> => {
+  try {
+    const response = await fetch('http://122.51.230.169:3000/api/ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: base64Image })
+    })
+    return await response.json()
+  } catch (e) {
+    console.error('OCR API错误:', e)
+    return { success: false, message: 'API调用失败' }
+  }
+}
+
 // 解析OCR文本，提取关键信息
 const parseOCRText = (text: string): { name: string; amount: string; date: string } => {
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l)
+  const lines = text.split(/[\n\r]+/).map(l => l.trim()).filter(l => l)
   
   let name = ''
   let amount = ''
@@ -113,9 +129,9 @@ const parseOCRText = (text: string): { name: string; amount: string; date: strin
   for (const line of lines) {
     // 匹配金额 (如 30.00, 50元, ¥30)
     if (!amount) {
-      const amountMatch = line.match(/(?:¥|￥)?\s*(\d+\.?\d*)\s*(?:元)?/)
-      if (amountMatch && parseFloat(amountMatch[1]) > 0) {
-        amount = amountMatch[1]
+      const amountMatch = line.match(/(?:¥|￥)\s*(\d+\.?\d*)|(\d+\.\d{2})(?=\s*(?:元|$))/)
+      if (amountMatch) {
+        amount = amountMatch[1] || amountMatch[2]
       }
     }
 
@@ -123,12 +139,7 @@ const parseOCRText = (text: string): { name: string; amount: string; date: strin
     if (!date) {
       const dateMatch = line.match(/(\d{4}[年/-]\d{1,2}[月/-]\d{1,2}[日]?)/)
       if (dateMatch) {
-        date = dateMatch[1].replace(/[年月]/g, '-').replace(/日/, '')
-      }
-      // 简单日期格式
-      const simpleDate = line.match(/(\d{1,2}[\/\-]\d{1,2})/)
-      if (simpleDate && !date) {
-        date = `2026-${simpleDate[1].replace('/', '-')}`
+        date = dateMatch[1].replace(/[年月]/g, '-').replace(/日/, '').replace(/-$/, '')
       }
     }
   }

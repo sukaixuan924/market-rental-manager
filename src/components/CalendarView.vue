@@ -121,6 +121,7 @@ const handleDayClick = (day: typeof calendarDays.value[0]) => {
         <span class="day-number">{{ day.day }}</span>
         <span v-if="day.records.length > 0" class="day-indicator">
           <template v-if="day.records[0].rentalType === 'long-term'">长租</template>
+          <template v-else-if="day.records[0].rentalType === 'daily'">日租</template>
           <template v-else>¥{{ day.records[0].rentAmount }}</template>
         </span>
       </div>

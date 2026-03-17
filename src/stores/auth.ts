@@ -49,7 +49,18 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       const result = await userAPI.login(username, password)
-      saveAuth(result.user, result.token)
+      // 转换后端字段命名 (created_at -> createdAt, last_login_at -> lastLoginAt, password_hash -> passwordHash)
+      const user: User = {
+        id: result.user.id,
+        username: result.user.username,
+        passwordHash: result.user.password_hash,
+        nickname: result.user.nickname,
+        role: result.user.role,
+        status: result.user.status,
+        createdAt: result.user.created_at,
+        lastLoginAt: result.user.last_login_at
+      }
+      saveAuth(user, result.token)
       return { success: true, message: '登录成功' }
     } catch (e: any) {
       return { success: false, message: e.message }
@@ -63,7 +74,18 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
     try {
       const result = await userAPI.register(username, password, nickname)
-      saveAuth(result.user, result.token)
+      // 转换后端字段命名
+      const user: User = {
+        id: result.user.id,
+        username: result.user.username,
+        passwordHash: result.user.password_hash,
+        nickname: result.user.nickname,
+        role: result.user.role,
+        status: result.user.status,
+        createdAt: result.user.created_at,
+        lastLoginAt: result.user.last_login_at
+      }
+      saveAuth(user, result.token)
       return { success: true, message: '注册成功' }
     } catch (e: any) {
       return { success: false, message: e.message }

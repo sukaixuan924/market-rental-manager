@@ -181,6 +181,75 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // 腾讯云OCR API
+    if (url === '/api/ocr' && method === 'POST') {
+      const tencentcloud = require('tencentcloud-sdk-nodejs-ocr');
+      const OcrClient = tencentcloud.ocr.v20181119.Client;
+      const ocrConfig = {
+        credential: {
+          secretId: 'AKIDRaYN5tcDbtbBdv9cCkS8zQF3iDYjkaGn',
+          secretKey: 'VqywlPtAFAtNoFYiiWCj6JMI5g6OTN5d'
+        },
+        region: 'ap-guangzhou'
+      };
+      
+      const body = await parseBody(req);
+      
+      try {
+        const client = new OcrClient(ocrConfig);
+        
+        let imageBase64 = body.image;
+        if (imageBase64.startsWith('data:')) {
+          imageBase64 = imageBase64.split(',')[1];
+        }
+        
+        const result = await client.GeneralBasicOCR({
+          ImageBase64: imageBase64
+        });
+        
+        const texts = result.TextDetections ? result.TextDetections.map((t) => t.DetectedText) : [];
+        
+        let name = '';
+        let amount = '';
+        let date = '';
+        
+        for (const text of texts) {
+          if (!amount && (text.includes('元') || /^\d+\.\d{2}$/.test(text))) {
+            amount = text.replace(/[^\d.]/g, '');
+          }
+          if (!date && /\d{1,4}[年/-]\d{1,2}[月/-]\d{1,2}/.test(text)) {
+            date = text.replace(/[年月]/g, '-').replace(/日/, '').replace(/-$/, '');
+          }
+        }
+        
+        for (const text of texts) {
+          if (text.includes('收款方') && text.length > 3) {
+            name = text.replace('收款方', '').trim();
+            break;
+          }
+        }
+        
+        if (!name && texts.length > 0) {
+          const firstLine = texts[0].trim();
+          if (firstLine.length > 1 && firstLine.length < 20) {
+            name = firstLine;
+          }
+        }
+        
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          success: true,
+          texts: texts,
+          parsed: { name, amount, date }
+        }));
+      } catch (ocrError) {
+        console.error('OCR错误:', ocrError);
+        res.writeHead(500);
+        res.end(JSON.stringify({ success: false, message: ocrError.message }));
+      }
+      return;
+    }
+
     // 404
     res.writeHead(404);
     res.end(JSON.stringify({ error: 'Not found' }));

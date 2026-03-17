@@ -33,7 +33,21 @@ export const userAPI = {
   register: (username: string, password: string, nickname?: string) =>
     request('/api/register', { method: 'POST', body: { username, password, nickname } }),
   
-  getAll: () => request('/api/users')
+  getAll: () => request('/api/users'),
+  
+  // 管理员创建用户
+  createUser: (user: { username: string; password: string; nickname?: string; role?: string }) =>
+    request('/api/users', { method: 'POST', body: user }),
+  
+  // 禁用用户
+  disableUser: (id: string) => request(`/api/users/${id}/disable`, { method: 'PUT' }),
+  
+  // 启用用户
+  enableUser: (id: string) => request(`/api/users/${id}/enable`, { method: 'PUT' }),
+  
+  // 重置密码
+  resetPassword: (id: string, password: string) => 
+    request(`/api/users/${id}/reset-password`, { method: 'PUT', body: { password } })
 }
 
 // 位置API

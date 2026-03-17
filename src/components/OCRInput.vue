@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import Tesseract from 'tesseract.js'
 
 const props = defineProps<{
   modelValue: string
@@ -8,64 +9,150 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  'ocr-result': [result: { name: string; amount: string; date: string }]
 }>()
 
 const loading = ref(false)
+const progress = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
+const cameraInput = ref<HTMLInputElement | null>(null)
 
-// 触发文件选择
+// 触发文件选择（相册）
 const triggerUpload = () => {
+  if (loading.value) return
   fileInput.value?.click()
 }
 
-// 处理文件选择
+// 触发拍照
+const triggerCamera = () => {
+  if (loading.value) return
+  cameraInput.value?.click()
+}
+
+// 处理文件选择（相册）
 const handleFileChange = async (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
-  
   if (!file) return
-  
-  // 检查文件类型
+  processImage(file)
+  setTimeout(() => { if (fileInput.value) fileInput.value.value = '' }, 1000)
+}
+
+// 处理拍照
+const handleCameraChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+  processImage(file)
+  setTimeout(() => { if (cameraInput.value) cameraInput.value.value = '' }, 1000)
+}
+
+// 处理图片 - 使用Tesseract.js本地OCR
+const processImage = async (file: File) => {
   if (!file.type.startsWith('image/')) {
     ElMessage.warning('请选择图片文件')
     return
   }
-  
-  // 检查文件大小 (最大5MB)
-  if (file.size > 5 * 1024 * 1024) {
-    ElMessage.warning('图片大小不能超过5MB')
+  if (file.size > 10 * 1024 * 1024) {
+    ElMessage.warning('图片大小不能超过10MB')
     return
   }
 
   loading.value = true
-  
+  progress.value = 0
+
   try {
     // 读取图片为base64
     const base64 = await fileToBase64(file)
     
-    // 调用腾讯云OCR（需要在服务端配置密钥）
-    // 这里先实现本地模拟 + 实际API调用
-    const result = await callOCRAPI(base64)
+    // 使用Tesseract.js进行OCR识别
+    const result = await Tesseract.recognize(base64, 'chi_sim+eng', {
+      logger: (m) => {
+        if (m.status === 'recognizing text') {
+          progress.value = Math.round(m.progress * 100)
+        }
+      }
+    })
+
+    const text = result.data.text.trim()
     
-    if (result.success) {
-      // 合并到现有文本
-      const currentText = props.modelValue
-      const newText = currentText + (currentText ? ' ' : '') + result.text
-      emit('update:modelValue', newText)
-      ElMessage.success('识别成功')
-    } else {
-      ElMessage.error(result.message || '识别失败')
+    if (!text) {
+      ElMessage.warning('未识别到文字，请换一张更清晰的图片')
+      return
     }
-  } catch (e) {
+
+    // 解析识别结果
+    const parsed = parseOCRText(text)
+    
+    // 填入租客姓名
+    if (parsed.name) {
+      emit('update:modelValue', parsed.name)
+    }
+    
+    // 发送完整解析结果
+    emit('ocr-result', parsed)
+    
+    ElMessage.success(`识别成功: ${parsed.name || '未知'} - ¥${parsed.amount || '0'}`)
+  } catch (e: any) {
     console.error('OCR识别错误:', e)
-    ElMessage.error('识别失败，请重试')
+    ElMessage.error('识别失败，请换一张图片重试')
   } finally {
     loading.value = false
-    // 清空input
-    if (fileInput.value) {
-      fileInput.value.value = ''
+    progress.value = 0
+  }
+}
+
+// 解析OCR文本，提取关键信息
+const parseOCRText = (text: string): { name: string; amount: string; date: string } => {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l)
+  
+  let name = ''
+  let amount = ''
+  let date = ''
+
+  for (const line of lines) {
+    // 匹配金额 (如 30.00, 50元, ¥30)
+    if (!amount) {
+      const amountMatch = line.match(/(?:¥|￥)?\s*(\d+\.?\d*)\s*(?:元)?/)
+      if (amountMatch && parseFloat(amountMatch[1]) > 0) {
+        amount = amountMatch[1]
+      }
+    }
+
+    // 匹配日期 (如 2026-03-18, 2026年3月18日, 03/18)
+    if (!date) {
+      const dateMatch = line.match(/(\d{4}[年/-]\d{1,2}[月/-]\d{1,2}[日]?)/)
+      if (dateMatch) {
+        date = dateMatch[1].replace(/[年月]/g, '-').replace(/日/, '')
+      }
+      // 简单日期格式
+      const simpleDate = line.match(/(\d{1,2}[\/\-]\d{1,2})/)
+      if (simpleDate && !date) {
+        date = `2026-${simpleDate[1].replace('/', '-')}`
+      }
     }
   }
+
+  // 提取名字 - 通常是第一行或者包含"收款"的行
+  for (const line of lines) {
+    if (line.includes('收款方') || line.includes('收款')) {
+      const parts = line.replace(/收款方|收款/, '').trim()
+      if (parts && parts.length < 15) {
+        name = parts
+        break
+      }
+    }
+  }
+
+  // 如果没找到，尝试第一行
+  if (!name && lines.length > 0) {
+    const firstLine = lines[0].replace(/[^a-zA-Z\u4e00-\u9fa5]/g, '').trim()
+    if (firstLine && firstLine.length > 1 && firstLine.length < 15) {
+      name = firstLine
+    }
+  }
+
+  return { name, amount, date }
 }
 
 // 文件转Base64
@@ -78,76 +165,29 @@ const fileToBase64 = (file: File): Promise<string> => {
   })
 }
 
-// 模拟OCR调用（实际需要配置腾讯云密钥）
-const callOCRAPI = async (base64Image: string): Promise<{ success: boolean; text: string; message?: string }> => {
-  // 实际项目中应该调用后端API，后端再调用腾讯云OCR
-  // 这里使用腾讯云通用OCR API作为示例
-  // 需要环境变量: TENCENT_CLOUD_SECRET_ID, TENCENT_CLOUD_SECRET_KEY
-  
-  try {
-    // 检查是否有配置密钥
-    const secretId = import.meta.env.VITE_TENCENT_SECRET_ID
-    const secretKey = import.meta.env.VITE_TENCENT_SECRET_KEY
-    
-    if (!secretId || !secretKey) {
-      // 演示模式：返回模拟数据
-      return await simulateOCR(base64Image)
-    }
-    
-    // 实际API调用（需要后端中转）
-    const response = await fetch('/api/ocr', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: base64Image })
-    })
-    
-    const data = await response.json()
-    
-    if (data.success) {
-      return { success: true, text: data.text }
-    } else {
-      return { success: false, text: '', message: data.message }
-    }
-  } catch (e) {
-    return await simulateOCR(base64Image)
-  }
-}
-
-// 模拟OCR（演示用）
-const simulateOCR = async (base64Image: string): Promise<{ success: boolean; text: string }> => {
-  // 模拟网络延迟
-  await new Promise(resolve => setTimeout(resolve, 1500))
-  
-  // 提取图片名称（如果是文件）
-  // 实际使用中，这里可以返回一些示例文本
-  // 用户可以手动编辑
-  
-  // 返回提示信息
-  return { 
-    success: true, 
-    text: '[请手动填写识别结果]' 
-  }
-}
-
-// 从相册选择
-const handleGalleryClick = () => {
-  triggerUpload()
-}
-
-// 拍照
-const handleCameraClick = () => {
-  triggerUpload()
-}
+onUnmounted(() => {
+  loading.value = false
+})
 </script>
 
 <template>
   <div class="ocr-input">
+    <!-- 相册选择 -->
     <input 
       ref="fileInput"
       type="file" 
-      accept="image/*" 
-      capture="environment"
+      accept="image/*"
       @change="handleFileChange"
+      style="display: none"
+    />
+    
+    <!-- 拍照 -->
+    <input 
+      ref="cameraInput"
+      type="file" 
+      accept="image/*"
+      capture="environment"
+      @change="handleCameraChange"
       style="display: none"
     />
     
@@ -155,15 +195,30 @@ const handleCameraClick = () => {
       <el-button 
         type="primary" 
         @click="triggerUpload"
-        :loading="loading"
+        :disabled="loading"
       >
-        📷 {{ loading ? '识别中...' : '图片识别' }}
+        <template v-if="loading">
+          {{ progress }}%
+        </template>
+        <template v-else>
+          🖼️ 相册
+        </template>
+      </el-button>
+      <el-button 
+        type="success" 
+        @click="triggerCamera"
+        :disabled="loading"
+      >
+        <template v-if="loading">
+          识别中
+        </template>
+        <template v-else>
+          📷 拍照
+        </template>
       </el-button>
     </div>
     
-    <div class="ocr-tips" v-if="!loading">
-      <p>💡 支持拍照或相册选择图片，自动识别文字</p>
-    </div>
+    <el-progress v-if="loading" :percentage="progress" :stroke-width="4" style="margin-top: 8px; width: 200px;" />
   </div>
 </template>
 
@@ -177,14 +232,5 @@ const handleCameraClick = () => {
 .ocr-buttons {
   display: flex;
   gap: 8px;
-}
-
-.ocr-tips {
-  font-size: 12px;
-  color: #909399;
-}
-
-.ocr-tips p {
-  margin: 0;
 }
 </style>

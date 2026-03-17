@@ -10,25 +10,27 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "vue": "^3.4.21",
-    "vue-router": "^4.3.0",
-    "pinia": "^2.1.7",
-    "vant": "^4.8.7",
-    "element-plus": "^2.6.2",
     "@element-plus/icons-vue": "^2.3.1",
-    "v-calendar": "^3.1.2",
-    "dayjs": "^1.11.10",
     "@tauri-apps/api": "^2.0.0",
-    "@tauri-apps/plugin-sql": "^2.0.0"
+    "@tauri-apps/plugin-sql": "^2.0.0",
+    "dayjs": "^1.11.10",
+    "element-plus": "^2.6.2",
+    "pinia": "^2.1.7",
+    "tencentcloud-sdk-nodejs-ocr": "^4.1.194",
+    "tesseract.js": "^7.0.0",
+    "v-calendar": "^3.1.2",
+    "vant": "^4.8.7",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
     "@vitejs/plugin-vue": "^5.0.4",
     "typescript": "^5.4.2",
-    "vite": "^5.1.6",
-    "vue-tsc": "^2.0.6",
-    "@tauri-apps/cli": "^2.0.0",
-    "unplugin-vue-components": "^0.26.0",
     "unplugin-auto-import": "^0.17.5",
-    "vite-plugin-style-import": "^2.0.0"
+    "unplugin-vue-components": "^0.26.0",
+    "vite": "^5.1.6",
+    "vite-plugin-style-import": "^2.0.0",
+    "vue-tsc": "^2.0.6"
   }
 }

@@ -86,21 +86,27 @@ const handleVoiceInput = (text: string) => {
   form.value.renterName = text
 }
 
-// OCR输入更新
-const handleOCRInput = (text: string) => {
-  // OCR识别后尝试解析
-  // 格式可能是 "张三 烧烤 50元"
-  const parts = text.split(/[\s,，]+/)
-  if (parts.length >= 1) {
-    form.value.renterName = parts[0]
+// OCR识别结果处理
+const handleOCRResult = (result: { name: string; amount: string; date: string }) => {
+  // 自动填入识别结果
+  if (result.name) {
+    form.value.renterName = result.name
   }
-  if (parts.length >= 2) {
-    // 尝试匹配经营类型
-    const type = RENTAL_TYPES.find(t => text.includes(t))
-    if (type) {
-      form.value.rentalTypeName = type
+  if (result.amount) {
+    const numAmount = parseFloat(result.amount)
+    if (!isNaN(numAmount)) {
+      form.value.rentAmount = numAmount
     }
   }
+  if (result.date) {
+    // 验证日期格式并填入
+    if (/^\d{4}-\d{2}-\d{2}$/.test(result.date)) {
+      form.value.date = result.date
+      form.value.startDate = result.date
+    }
+  }
+  // 识别成功后自动设为已付款
+  form.value.paymentStatus = 'paid'
 }
 
 const handleSubmit = () => {
@@ -190,7 +196,7 @@ const handleSubmit = () => {
         />
         <div class="input-tools">
           <VoiceInput v-model="form.renterName" />
-          <OCRInput v-model="form.renterName" />
+          <OCRInput v-model="form.renterName" @ocr-result="handleOCRResult" />
         </div>
       </div>
     </el-form-item>

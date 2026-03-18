@@ -39,6 +39,11 @@ const router = createRouter({
       meta: { requiresAuth: true, requiresAdmin: true }
     },
     {
+      path: '/share/:id?',
+      name: 'share',
+      component: () => import('@/views/ShareView.vue')
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/'
     }

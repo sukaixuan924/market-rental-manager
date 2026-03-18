@@ -43,6 +43,15 @@ const handleLogout = () => {
 const goToUserManagement = () => {
   router.push('/users')
 }
+
+// 移动端用户菜单命令
+const handleCommand = (command: string) => {
+  if (command === 'users') {
+    router.push('/users')
+  } else if (command === 'logout') {
+    handleLogout()
+  }
+}
 </script>
 
 <template>
@@ -89,6 +98,29 @@ const goToUserManagement = () => {
     <main class="main-content">
       <RouterView />
     </main>
+
+    <!-- 移动端顶部用户栏 -->
+    <header v-if="isMobile" class="mobile-header">
+      <div class="mobile-user" v-if="authStore.currentUser">
+        <el-dropdown trigger="click" @command="handleCommand">
+          <span class="mobile-user-info">
+            <el-icon><User /></el-icon>
+            {{ authStore.currentUser.nickname }}
+            <el-tag v-if="authStore.isAdmin" size="small" type="danger">管</el-tag>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-if="authStore.isAdmin" command="users">
+                <el-icon><User /></el-icon> 用户管理
+              </el-dropdown-item>
+              <el-dropdown-item command="logout" divided>
+                <el-icon><SwitchButton /></el-icon> 退出登录
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
+    </header>
 
     <!-- 移动端底部导航 -->
     <footer v-if="isMobile" class="mobile-footer">
@@ -198,6 +230,7 @@ body {
 
 /* 移动端样式 */
 .app-container.is-mobile {
+  padding-top: 50px;
   padding-bottom: 60px;
   
   .main-content {
@@ -237,5 +270,30 @@ body {
 
 .mobile-tab span {
   margin-top: 2px;
+}
+
+/* 移动端顶部用户栏 */
+.mobile-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.mobile-user-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 20px;
+  font-size: 14px;
+}
+
+.mobile-user-info:hover {
+  background: rgba(255,255,255,0.3);
 }
 </style>

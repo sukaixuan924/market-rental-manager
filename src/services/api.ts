@@ -65,5 +65,7 @@ export const recordAPI = {
   
   create: (record: any) => request('/api/records', { method: 'POST', body: record }),
   
+  update: (id: string, data: any) => request(`/api/records/${id}`, { method: 'PUT', body: data }),
+  
   delete: (id: string) => request(`/api/records/${id}`, { method: 'DELETE' })
 }

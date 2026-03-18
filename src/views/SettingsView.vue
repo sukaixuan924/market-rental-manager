@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useStallStore } from '@/stores/stall'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
+const router = useRouter()
 const stallStore = useStallStore()
 
 // 关于信息
@@ -26,7 +28,7 @@ const exportStalls = () => {
 const importStalls = (event: Event) => {
   const input = event.target as HTMLInputElement
   if (!input.files?.length) return
-  
+
   const file = input.files[0]
   const reader = new FileReader()
   reader.onload = (e) => {
@@ -58,13 +60,13 @@ const importStalls = (event: Event) => {
 const clearAllData = async () => {
   try {
     await ElMessageBox.confirm('确定要清除所有数据吗？此操作不可恢复！', '警告')
-    
+
     localStorage.removeItem('market_stalls')
     localStorage.removeItem('market_rentals')
-    
+
     // 重新加载
     stallStore.loadStalls()
-    
+
     ElMessage.success('数据已清除')
     setTimeout(() => location.reload(), 500)
   } catch {
@@ -76,7 +78,7 @@ const clearAllData = async () => {
 const loadDemoData = async () => {
   try {
     await ElMessageBox.confirm('将添加演示数据，是否继续？', '提示')
-    
+
     // 添加演示位置
     const stalls = [
       { name: 'A区1号', area: 'A区', defaultPrice: 50, longTermPrice: 800, status: 'active' as const },
@@ -86,9 +88,9 @@ const loadDemoData = async () => {
       { name: 'B区2号', area: 'B区', defaultPrice: 40, longTermPrice: 600, status: 'active' as const },
       { name: '入口处', area: '主通道', defaultPrice: 80, longTermPrice: 1200, status: 'active' as const }
     ]
-    
+
     stalls.forEach(s => stallStore.addStall(s))
-    
+
     ElMessage.success('演示数据已添加')
   } catch {
     // 用户取消
@@ -105,7 +107,7 @@ const loadDemoData = async () => {
     <!-- 数据管理 -->
     <div class="section">
       <h3>📁 数据管理</h3>
-      
+
       <div class="setting-item">
         <div class="setting-info">
           <div class="setting-title">导出位置数据</div>
@@ -122,13 +124,23 @@ const loadDemoData = async () => {
         <el-button @click="($refs.fileInput as HTMLInputElement)?.click()">
           导入
         </el-button>
-        <input 
-          ref="fileInput" 
-          type="file" 
-          accept=".json" 
-          style="display: none" 
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".json"
+          style="display: none"
           @change="importStalls"
         />
+      </div>
+
+      <div class="setting-item">
+        <div class="setting-info">
+          <div class="setting-title">🔗 分享出租信息</div>
+          <div class="setting-desc">生成分享链接，客户可查看（仅读权限）</div>
+        </div>
+        <el-button type="primary" @click="router.push('/share')">
+          分享
+        </el-button>
       </div>
 
       <div class="setting-item">
@@ -151,7 +163,7 @@ const loadDemoData = async () => {
     <!-- 关于 -->
     <div class="section">
       <h3>ℹ️ 关于</h3>
-      
+
       <div class="about-info">
         <div class="app-name">🏪 市场日租管理系统</div>
         <div class="app-version">版本 {{ version }}</div>
@@ -173,7 +185,7 @@ const loadDemoData = async () => {
     <!-- 使用提示 -->
     <div class="section">
       <h3>💡 使用提示</h3>
-      
+
       <div class="tips">
         <p>• 数据存储在浏览器本地，更换设备不会同步</p>
         <p>• 建议定期导出数据备份</p>

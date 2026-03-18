@@ -1,4 +1,6 @@
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { Client } = require('pg');
 
 const PORT = 3000;
@@ -187,8 +189,8 @@ const server = http.createServer(async (req, res) => {
       const OcrClient = tencentcloud.ocr.v20181119.Client;
       const ocrConfig = {
         credential: {
-          secretId: 'AKIDRaYN5tcDbtbBdv9cCkS8zQF3iDYjkaGn',
-          secretKey: 'VqywlPtAFAtNoFYiiWCj6JMI5g6OTN5d'
+          secretId: process.env.TENCENT_SECRET_ID || 'YOUR_SECRET_ID',
+          secretKey: process.env.TENCENT_SECRET_KEY || 'YOUR_SECRET_KEY'
         },
         region: 'ap-guangzhou'
       };
@@ -209,30 +211,48 @@ const server = http.createServer(async (req, res) => {
         
         const texts = result.TextDetections ? result.TextDetections.map((t) => t.DetectedText) : [];
         
+        // 过滤空文本
+        const validTexts = texts.filter(t => t && t.trim().length > 0);
+        
+        console.log('识别文字:', JSON.stringify(validTexts));
+        
         let name = '';
         let amount = '';
         let date = '';
         
-        for (const text of texts) {
-          if (!amount && (text.includes('元') || /^\d+\.\d{2}$/.test(text))) {
-            amount = text.replace(/[^\d.]/g, '');
+        // 先找金额 - 微信收款显示为 "￥80.00" 或 "80元"
+        for (const text of validTexts) {
+          const amountMatch = text.match(/[￥￥]\s*(\d+\.?\d*)|(\d+\.?\d*)\s*元/);
+          if (!amount && amountMatch) {
+            amount = amountMatch[1] || amountMatch[2];
           }
-          if (!date && /\d{1,4}[年/-]\d{1,2}[月/-]\d{1,2}/.test(text)) {
-            date = text.replace(/[年月]/g, '-').replace(/日/, '').replace(/-$/, '');
+          // 匹配日期
+          if (!date && /(\d{1,2})[月/-](\d{1,2})[日]?/.test(text)) {
+            const match = text.match(/(\d{1,2})[月/-](\d{1,2})[日]?/);
+            if (match) {
+              date = `2026-${match[1].padStart(2,'0')}-${match[2].padStart(2,'0')}`;
+            }
           }
         }
         
-        for (const text of texts) {
-          if (text.includes('收款方') && text.length > 3) {
-            name = text.replace('收款方', '').trim();
+        // 找名字 - 微信名通常是"收款方"下面的大段文字，或者是长文本中包含"品牌"、"内衣"等关键词
+        for (const text of validTexts) {
+          // 匹配微信名（通常包含"品牌"、"店"等关键词，且长度较长）
+          if (text.length >= 4 && (text.includes('品牌') || text.includes('店') || text.includes('工作室') || text.includes('商行'))) {
+            name = text;
             break;
           }
         }
         
-        if (!name && texts.length > 0) {
-          const firstLine = texts[0].trim();
-          if (firstLine.length > 1 && firstLine.length < 20) {
-            name = firstLine;
+        // 如果没找到，尝试找第二行或包含数字较少的文本作为名字
+        if (!name && validTexts.length > 1) {
+          for (let i = 1; i < validTexts.length; i++) {
+            const t = validTexts[i].trim();
+            // 跳过太短的、纯数字的、包含特殊符号的
+            if (t.length >= 3 && !/^\d+$/.test(t) && !t.includes('￥') && !t.includes('转账')) {
+              name = t;
+              break;
+            }
           }
         }
         
@@ -250,6 +270,16 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // 非API请求，返回前端静态文件（SPA支持）
+    const indexPath = path.join(__dirname, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      const content = fs.readFileSync(indexPath, 'utf8');
+      res.setHeader('Content-Type', 'text/html');
+      res.writeHead(200);
+      res.end(content);
+      return;
+    }
+    
     // 404
     res.writeHead(404);
     res.end(JSON.stringify({ error: 'Not found' }));

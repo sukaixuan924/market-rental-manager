@@ -1,4 +1,6 @@
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { Client } = require('pg');
 
 const PORT = 3000;
@@ -173,6 +175,71 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (url.startsWith('/api/records/') && method === 'PUT') {
+      const id = url.split('/')[3];
+      const body = await parseBody(req);
+      
+      // 构建动态更新语句
+      const fields = [];
+      const values = [];
+      let paramIndex = 1;
+      
+      if (body.stallId !== undefined) {
+        fields.push(`stall_id = $${paramIndex++}`);
+        values.push(body.stallId);
+      }
+      if (body.renterName !== undefined) {
+        fields.push(`renter_name = $${paramIndex++}`);
+        values.push(body.renterName);
+      }
+      if (body.rentalType !== undefined) {
+        fields.push(`rental_type = $${paramIndex++}`);
+        values.push(body.rentalType);
+      }
+      if (body.rentalTypeName !== undefined) {
+        fields.push(`rental_type_name = $${paramIndex++}`);
+        values.push(body.rentalTypeName);
+      }
+      if (body.date !== undefined) {
+        fields.push(`date = $${paramIndex++}`);
+        values.push(body.date);
+      }
+      if (body.startDate !== undefined) {
+        fields.push(`start_date = $${paramIndex++}`);
+        values.push(body.startDate);
+      }
+      if (body.endDate !== undefined) {
+        fields.push(`end_date = $${paramIndex++}`);
+        values.push(body.endDate);
+      }
+      if (body.rentAmount !== undefined) {
+        fields.push(`rent_amount = $${paramIndex++}`);
+        values.push(body.rentAmount);
+      }
+      if (body.paymentStatus !== undefined) {
+        fields.push(`payment_status = $${paramIndex++}`);
+        values.push(body.paymentStatus);
+      }
+      if (body.notes !== undefined) {
+        fields.push(`notes = $${paramIndex++}`);
+        values.push(body.notes);
+      }
+      
+      fields.push(`updated_at = NOW()`);
+      
+      if (fields.length > 0) {
+        values.push(id);
+        await client.query(
+          `UPDATE rental_records SET ${fields.join(', ')} WHERE id = $${paramIndex}`,
+          values
+        );
+      }
+      
+      res.writeHead(200);
+      res.end(JSON.stringify({ success: true }));
+      return;
+    }
+
     if (url.startsWith('/api/records/') && method === 'DELETE') {
       const id = url.split('/')[3];
       await client.query('DELETE FROM rental_records WHERE id = $1', [id]);
@@ -268,6 +335,16 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // 非API请求，返回前端静态文件（SPA支持）
+    const indexPath = path.join(__dirname, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      const content = fs.readFileSync(indexPath, 'utf8');
+      res.setHeader('Content-Type', 'text/html');
+      res.writeHead(200);
+      res.end(content);
+      return;
+    }
+    
     // 404
     res.writeHead(404);
     res.end(JSON.stringify({ error: 'Not found' }));

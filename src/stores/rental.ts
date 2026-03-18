@@ -60,9 +60,15 @@ export const useRentalStore = defineStore('rental', () => {
 
   // 更新记录
   const updateRecord = async (id: string, data: Partial<RentalRecord>) => {
-    const index = records.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      records.value[index] = { ...records.value[index], ...data }
+    try {
+      await recordAPI.update(id, data)
+      const index = records.value.findIndex(r => r.id === id)
+      if (index !== -1) {
+        records.value[index] = { ...records.value[index], ...data }
+      }
+    } catch (e) {
+      console.error('更新记录失败:', e)
+      throw e
     }
   }
 

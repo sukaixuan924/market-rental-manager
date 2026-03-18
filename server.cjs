@@ -277,6 +277,16 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // 非API请求，返回前端静态文件（SPA支持）
+    const indexPath = path.join(__dirname, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      const content = fs.readFileSync(indexPath, 'utf8');
+      res.setHeader('Content-Type', 'text/html');
+      res.writeHead(200);
+      res.end(content);
+      return;
+    }
+    
     // 404
     res.writeHead(404);
     res.end(JSON.stringify({ error: 'Not found' }));

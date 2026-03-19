@@ -9,12 +9,20 @@ const rentalStore = useRentalStore()
 
 const currentYear = ref(dayjs().year())
 const currentMonth = ref(dayjs().month() + 1)
+const selectedStallId = ref<string>('')  // 选中的位置
 
 // 本月统计
 const monthStats = computed(() => {
   const year = currentYear.value
   const month = currentMonth.value
-  const monthRecords = rentalStore.records.filter(r => {
+  let records = rentalStore.records
+  
+  // 按位置筛选
+  if (selectedStallId.value) {
+    records = records.filter(r => r.stallId === selectedStallId.value)
+  }
+  
+  const monthRecords = records.filter(r => {
     if (r.rentalType === 'daily') {
       const d = new Date(r.date)
       return d.getFullYear() === year && d.getMonth() + 1 === month
@@ -53,8 +61,21 @@ const months = Array.from({ length: 12 }, (_, i) => i + 1)
 
 // 各位置统计
 const stallStats = computed(() => {
-  return stallStore.stalls.map(stall => {
-    const records = rentalStore.getRecordsByStallId(stall.id)
+  let stalls = stallStore.stalls
+  
+  // 按位置筛选
+  if (selectedStallId.value) {
+    stalls = stalls.filter(s => s.id === selectedStallId.value)
+  }
+  
+  return stalls.map(stall => {
+    let records = rentalStore.getRecordsByStallId(stall.id)
+    
+    // 按位置筛选
+    if (selectedStallId.value) {
+      records = records.filter(r => r.stallId === selectedStallId.value)
+    }
+    
     const thisMonthRecords = records.filter(r => {
       if (r.rentalType === 'daily') {
         const d = new Date(r.date)
@@ -88,7 +109,14 @@ const stallStats = computed(() => {
 
 // 近期记录
 const recentRecords = computed(() => {
-  return [...rentalStore.records]
+  let records = [...rentalStore.records]
+  
+  // 按位置筛选
+  if (selectedStallId.value) {
+    records = records.filter(r => r.stallId === selectedStallId.value)
+  }
+  
+  return records
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 10)
 })
@@ -108,7 +136,7 @@ onMounted(async () => {
       <h2>数据统计</h2>
     </div>
 
-    <!-- 月份选择 -->
+    <!-- 月份和位置选择 -->
     <div class="month-selector">
       <el-select v-model="currentYear" placeholder="选择年份">
         <el-option v-for="y in years" :key="y" :label="`${y}年`" :value="y" />
@@ -116,6 +144,10 @@ onMounted(async () => {
       <el-select v-model="currentMonth" placeholder="选择月份">
         <el-option v-for="m in months" :key="m" :label="`${m}月`" :value="m" />
       </el-select>
+      <el-select v-model="selectedStallId" placeholder="全部位置" clearable>
+        <el-option v-for="stall in stallStore.stalls" :key="stall.id" :label="stall.name" :value="stall.id" />
+      </el-select>
+      <el-button v-if="selectedStallId" @click="selectedStallId = ''">清除筛选</el-button>
     </div>
 
     <!-- 本月统计卡片 -->

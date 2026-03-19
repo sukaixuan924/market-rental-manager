@@ -13,6 +13,9 @@ const router = useRouter()
 const stallStore = useStallStore()
 const rentalStore = useRentalStore()
 
+// 只读模式检查
+const isReadonly = computed(() => localStorage.getItem('market_readonly') === 'true')
+
 // 查询参数
 const searchDate = ref(route.query.date as string || dayjs().format('YYYY-MM-DD'))
 const searchStallId = ref(route.params.stallId as string || '')
@@ -134,7 +137,7 @@ watch(() => route.query.date, (newDate) => {
   <div class="record-view">
     <div class="page-header">
       <h2>出租记录</h2>
-      <el-button type="primary" @click="openAddForm">
+      <el-button v-if="!isReadonly" type="primary" @click="openAddForm">
         + 添加记录
       </el-button>
     </div>
@@ -230,7 +233,7 @@ watch(() => route.query.date, (newDate) => {
           </div>
         </div>
         
-        <div class="record-actions">
+        <div class="record-actions" v-if="!isReadonly">
           <el-button size="small" @click="openEditForm(record)">编辑</el-button>
           <el-button size="small" type="danger" @click="deleteRecord(record)">删除</el-button>
         </div>

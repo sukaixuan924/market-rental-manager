@@ -16,6 +16,9 @@ const editingStall = ref<any>(null)
 const selectedStallId = ref<string | null>(null)
 const currentDate = ref(dayjs())
 
+// 只读模式检查
+const isReadonly = computed(() => localStorage.getItem('market_readonly') === 'true')
+
 // 今日日期字符串
 const todayStr = dayjs().format('YYYY-MM-DD')
 
@@ -122,7 +125,7 @@ onMounted(() => {
     <div class="stall-list-mobile" v-if="stallStore.stalls.length > 0">
       <div class="section-title">
         <span>位置列表</span>
-        <el-button type="primary" size="small" @click="showStallForm = true">
+        <el-button v-if="!isReadonly" type="primary" size="small" @click="showStallForm = true">
           <el-icon><Plus /></el-icon> 添加
         </el-button>
       </div>
@@ -144,7 +147,7 @@ onMounted(() => {
               {{ getStallStatus(stall.id).text }}
             </span>
           </div>
-          <div class="stall-actions" @click.stop>
+          <div class="stall-actions" v-if="!isReadonly" @click.stop>
             <el-button link type="primary" size="small" @click="editStall(stall)">
               <el-icon><Edit /></el-icon>
             </el-button>
@@ -158,7 +161,7 @@ onMounted(() => {
 
     <div class="empty-state" v-else>
       <el-empty description="暂无位置">
-        <el-button type="primary" @click="showStallForm = true">
+        <el-button v-if="!isReadonly" type="primary" @click="showStallForm = true">
           <el-icon><Plus /></el-icon> 添加第一个位置
         </el-button>
       </el-empty>
@@ -170,7 +173,7 @@ onMounted(() => {
       <aside class="pc-stall-list" v-if="stallStore.stalls.length > 0">
         <div class="pc-stall-header">
           <h3>位置列表</h3>
-          <el-button type="primary" size="small" @click="showStallForm = true">
+          <el-button v-if="!isReadonly" type="primary" size="small" @click="showStallForm = true">
             <el-icon><Plus /></el-icon> 添加位置
           </el-button>
         </div>
@@ -187,7 +190,7 @@ onMounted(() => {
               {{ getStallStatus(stall.id).text }}
             </span>
           </div>
-          <div class="pc-stall-actions" @click.stop>
+          <div class="pc-stall-actions" v-if="!isReadonly" @click.stop>
             <el-button link type="primary" size="small" @click="editStall(stall)">编辑</el-button>
             <el-button link type="danger" size="small" @click="deleteStall(stall)">删除</el-button>
           </div>

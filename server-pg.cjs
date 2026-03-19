@@ -248,6 +248,89 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // 分享相关API
+    // 创建分享链接
+    if (url === '/api/share' && method === 'POST') {
+      const body = await parseBody(req);
+      
+      const shareId = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+      const expiresAt = body.days > 0 
+        ? new Date(Date.now() + body.days * 24 * 60 * 60 * 1000).toISOString()
+        : null;
+      
+      await client.query(
+        `INSERT INTO share_links (id, stall_ids, start_date, end_date, creator_name, expires_at, created_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+        [shareId, JSON.stringify(body.stallIds), body.startDate, body.endDate, body.creatorName, expiresAt]
+      );
+      
+      res.writeHead(200);
+      res.end(JSON.stringify({ success: true, shareId }));
+      return;
+    }
+
+    // 获取分享数据
+    if (url.startsWith('/api/share/') && method === 'GET') {
+      const shareId = url.split('/')[3];
+      
+      // 获取分享信息
+      const shareResult = await client.query('SELECT * FROM share_links WHERE id = $1', [shareId]);
+      if (shareResult.rows.length === 0) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ success: false, error: '分享不存在' }));
+        return;
+      }
+      
+      const share = shareResult.rows[0];
+      
+      // 检查是否过期
+      if (share.expires_at && new Date(share.expires_at) < new Date()) {
+        res.writeHead(410);
+        res.end(JSON.stringify({ success: false, error: '分享已过期' }));
+        return;
+      }
+      
+      const stallIds = JSON.parse(share.stall_ids || '[]');
+      
+      // 获取位置信息
+      let stalls = [];
+      if (stallIds.length > 0) {
+        const stallsResult = await client.query(
+          `SELECT * FROM stalls WHERE id = ANY($1)`,
+          [stallIds]
+        );
+        stalls = stallsResult.rows;
+      }
+      
+      // 获取出租记录（按日期范围筛选）
+      let records = [];
+      const query = share.start_date && share.end_date
+        ? `SELECT r.*, s.name as stall_name FROM rental_records r 
+           JOIN stalls s ON r.stall_id = s.id 
+           WHERE r.stall_id = ANY($1) AND r.date >= $2 AND r.date <= $3 
+           ORDER BY r.date DESC`
+        : `SELECT r.*, s.name as stall_name FROM rental_records r 
+           JOIN stalls s ON r.stall_id = s.id 
+           WHERE r.stall_id = ANY($1) 
+           ORDER BY r.date DESC`;
+      
+      const params = share.start_date && share.end_date
+        ? [stallIds, share.start_date, share.end_date]
+        : [stallIds];
+      
+      const recordsResult = await client.query(query, params);
+      records = recordsResult.rows;
+      
+      res.writeHead(200);
+      res.end(JSON.stringify({ 
+        success: true, 
+        share: share,
+        stalls: stalls,
+        records: records
+      }));
+      return;
+    }
+
     // 腾讯云OCR API
     if (url === '/api/ocr' && method === 'POST') {
       const tencentcloud = require('tencentcloud-sdk-nodejs-ocr');

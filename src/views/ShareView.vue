@@ -46,14 +46,20 @@ const loadShareData = async () => {
   if (!shareId) return
   
   isViewer.value = true
+  // 设置只读模式
+  localStorage.setItem('market_readonly', 'true')
   loading.value = true
   
   try {
-    const res = await fetch(`http://122.51.230.169:3000/api/share/${shareId}`)
+    // 使用相对路径，自动适配当前域名
+    const apiBase = window.location.origin.replace(':8000', ':3000')
+    const res = await fetch(`${apiBase}/api/share/${shareId}`)
     const data = await res.json()
     
     if (!data.success) {
       ElMessage.error(data.error || '加载失败')
+      // 如果分享不存在或过期，清除只读模式
+      localStorage.removeItem('market_readonly')
       return
     }
     
@@ -63,6 +69,7 @@ const loadShareData = async () => {
   } catch (e) {
     console.error('加载分享数据失败', e)
     ElMessage.error('加载失败')
+    localStorage.removeItem('market_readonly')
   } finally {
     loading.value = false
   }
@@ -78,7 +85,8 @@ const createShare = async () => {
   shareLoading.value = true
   
   try {
-    const res = await fetch('http://122.51.230.169:3000/api/share', {
+    const apiBase = window.location.origin.replace(':8000', ':3000')
+    const res = await fetch(`${apiBase}/api/share`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -93,7 +101,7 @@ const createShare = async () => {
     const data = await res.json()
     
     if (data.success) {
-      shareUrl.value = `http://122.51.230.169:8000/#/share/${data.shareId}`
+      shareUrl.value = `${window.location.origin}/#/share/${data.shareId}`
       showShareResult.value = true
       ElMessage.success('分享链接已生成')
     } else {
@@ -107,10 +115,35 @@ const createShare = async () => {
   }
 }
 
-// 复制链接
+// 复制链接 - 兼容HTTP环境
 const copyLink = () => {
-  navigator.clipboard.writeText(shareUrl.value)
-  ElMessage.success('链接已复制到剪贴板')
+  // 尝试使用 Clipboard API
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(shareUrl.value).then(() => {
+      ElMessage.success('链接已复制到剪贴板')
+    }).catch(() => {
+      fallbackCopy()
+    })
+  } else {
+    fallbackCopy()
+  }
+}
+
+// 备选复制方案
+const fallbackCopy = () => {
+  const textarea = document.createElement('textarea')
+  textarea.value = shareUrl.value
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  try {
+    document.execCommand('copy')
+    ElMessage.success('链接已复制到剪贴板')
+  } catch (e) {
+    ElMessage.error('复制失败，请手动复制链接')
+  }
+  document.body.removeChild(textarea)
 }
 
 // 获取位置名称

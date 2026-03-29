@@ -12,25 +12,24 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: () => import('@/views/HomeView.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresWrite: true }
     },
     {
       path: '/record/:stallId?',
       name: 'record',
       component: () => import('@/views/RecordView.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresWrite: true }
     },
     {
       path: '/stats',
       name: 'stats',
-      component: () => import('@/views/StatsView.vue'),
-      meta: { requiresAuth: true }
+      component: () => import('@/views/StatsView.vue')
     },
     {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, requiresWrite: true }
     },
     {
       path: '/users',
@@ -55,6 +54,19 @@ router.beforeEach((to, from, next) => {
   // 直接从localStorage检查登录状态
   const authData = localStorage.getItem('market_auth')
   const isLoggedIn = authData ? JSON.parse(authData).token : null
+  const isReadonly = localStorage.getItem('market_readonly') === 'true'
+  
+  // 分享模式检查 - 如果进入需要写权限的页面且是只读模式，重定向回分享页
+  if (to.meta.requiresWrite && isReadonly) {
+    // 允许停留在分享页
+    if (to.name === 'share') {
+      next()
+      return
+    }
+    // 其他需要写权限的页面，阻止访问
+    next({ name: 'share' })
+    return
+  }
   
   // 需要登录的页面
   if (to.meta.requiresAuth) {

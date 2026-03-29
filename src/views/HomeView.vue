@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useStallStore } from '@/stores/stall'
 import { useRentalStore } from '@/stores/rental'
-import { Plus, Edit, Delete, Location } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, Location, Money, Calendar } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import StallForm from '@/components/StallForm.vue'
 import CalendarView from '@/components/CalendarView.vue'
 
+const router = useRouter()
 const stallStore = useStallStore()
 const rentalStore = useRentalStore()
 
@@ -17,7 +19,22 @@ const selectedStallId = ref<string | null>(null)
 const currentDate = ref(dayjs())
 
 // 只读模式检查
-const isReadonly = computed(() => localStorage.getItem('market_readonly') === 'true')
+const isReadonly = computed(() => {
+  // 优先从URL检查是否有shareId
+  const isShareMode = window.location.hash.includes('/share/')
+  if (isShareMode) {
+    localStorage.setItem('market_readonly', 'true')
+    return true
+  }
+  return localStorage.getItem('market_readonly') === 'true'
+})
+
+// 页面加载时检查只读模式
+onMounted(() => {
+  if (isReadonly.value) {
+    ElMessage.warning('只读模式，只能查看')
+  }
+})
 
 // 今日日期字符串
 const todayStr = dayjs().format('YYYY-MM-DD')
@@ -117,6 +134,30 @@ onMounted(() => {
     selectedStallId.value = stallStore.stalls[0].id
   }
 })
+
+// 获取选中位置的所有记录
+const selectedStallRecords = computed(() => {
+  if (!selectedStallId.value) return []
+  // 按日期倒序排列
+  return rentalStore.records
+    .filter(r => r.stallId === selectedStallId.value)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+})
+
+// 记录筛选月份
+const recordFilterMonth = ref(dayjs().format('YYYY-MM'))
+
+// 筛选后的记录
+const filteredRecords = computed(() => {
+  return selectedStallRecords.value.filter(r => {
+    return r.date.startsWith(recordFilterMonth.value)
+  })
+})
+
+// 跳转到记录详情
+const goToRecord = (record: any) => {
+  router.push({ name: 'record', params: { stallId: selectedStallId.value }, query: { date: record.date } })
+}
 </script>
 
 <template>
@@ -220,6 +261,59 @@ onMounted(() => {
           <span class="legend-item"><span class="dot unpaid"></span> 预订未付</span>
           <span class="legend-item"><span class="dot deposit"></span> 已付定金</span>
           <span class="legend-item"><span class="dot long-term"></span> 长租</span>
+        </div>
+
+        <!-- 出租记录列表 -->
+        <div class="records-section">
+          <div class="records-header">
+            <h3>出租记录</h3>
+            <el-date-picker
+              v-model="recordFilterMonth"
+              type="month"
+              placeholder="选择月份"
+              format="YYYY年MM月"
+              value-format="YYYY-MM"
+              size="small"
+              style="width: 140px"
+            />
+          </div>
+          
+          <div v-if="filteredRecords.length > 0" class="records-list">
+            <div 
+              v-for="record in filteredRecords" 
+              :key="record.id"
+              class="record-item"
+              @click="goToRecord(record)"
+            >
+              <div class="record-date">
+                <el-icon><Calendar /></el-icon>
+                {{ dayjs(record.date).format('MM/DD') }}
+                <span class="weekday">{{ '一二三四五六日'[dayjs(record.date).day()] }}</span>
+              </div>
+              <div class="record-info">
+                <div class="record-renter">{{ record.renterName || '未设置' }}</div>
+                <div class="record-type">
+                  <el-tag :type="record.rentalType === 'long-term' ? 'purple' : 'success'" size="small">
+                    {{ record.rentalType === 'long-term' ? '长租' : '日租' }}
+                  </el-tag>
+                </div>
+              </div>
+              <div class="record-amount">
+                <el-icon><Money /></el-icon>
+                ¥{{ record.rentAmount }}
+              </div>
+              <div class="record-status">
+                <el-tag 
+                  :type="record.paymentStatus === 'paid' ? 'success' : record.paymentStatus === 'deposit' ? 'primary' : 'warning'" 
+                  size="small"
+                >
+                  {{ record.paymentStatus === 'paid' ? '已付款' : record.paymentStatus === 'deposit' ? '已付定金' : '未付款' }}
+                </el-tag>
+              </div>
+            </div>
+          </div>
+          
+          <el-empty v-else description="该月暂无出租记录" :image-size="80" />
         </div>
       </div>
     </div>
@@ -416,6 +510,94 @@ onMounted(() => {
 .dot.deposit { background: #1890ff; }
 .dot.long-term { background: #722ed1; }
 
+/* 出租记录列表样式 */
+.records-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.records-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.records-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.records-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.record-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.record-item:hover {
+  background: #f0f5ff;
+  transform: translateX(4px);
+}
+
+.record-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: #333;
+  min-width: 70px;
+}
+
+.weekday {
+  font-size: 12px;
+  color: #999;
+  font-weight: normal;
+  margin-left: 2px;
+}
+
+.record-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.record-renter {
+  font-size: 14px;
+  color: #333;
+}
+
+.record-type {
+  display: flex;
+  gap: 6px;
+}
+
+.record-amount {
+  font-weight: 600;
+  color: #f5222d;
+  font-size: 15px;
+  min-width: 80px;
+  text-align: right;
+}
+
+.record-status {
+  min-width: 70px;
+  text-align: right;
+}
+
 @media (max-width: 768px) {
   .content-area {
     flex-direction: column;
@@ -427,6 +609,24 @@ onMounted(() => {
   
   .calendar-area {
     padding: 12px;
+  }
+  
+  .record-item {
+    flex-wrap: wrap;
+    padding: 10px;
+  }
+  
+  .record-date {
+    min-width: 60px;
+    font-size: 14px;
+  }
+  
+  .record-info {
+    flex: 1 1 auto;
+  }
+  
+  .record-amount {
+    font-size: 14px;
   }
 }
 </style>

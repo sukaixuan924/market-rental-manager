@@ -13,8 +13,22 @@ const router = useRouter()
 const stallStore = useStallStore()
 const rentalStore = useRentalStore()
 
-// 只读模式检查
-const isReadonly = computed(() => localStorage.getItem('market_readonly') === 'true')
+// 只读模式检查 - 从URL或localStorage判断
+const isReadonly = computed(() => {
+  const isShareMode = window.location.hash.includes('/share/')
+  if (isShareMode) {
+    localStorage.setItem('market_readonly', 'true')
+    return true
+  }
+  return localStorage.getItem('market_readonly') === 'true'
+})
+
+// 页面加载时检查只读模式
+onMounted(() => {
+  if (isReadonly.value) {
+    ElMessage.warning('只读模式，只能查看')
+  }
+})
 
 // 查询参数
 const searchDate = ref(route.query.date as string || dayjs().format('YYYY-MM-DD'))

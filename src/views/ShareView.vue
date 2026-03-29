@@ -162,11 +162,23 @@ const stats = computed(() => {
 
 onMounted(() => {
   if (shareId) {
+    // 进入查看者模式，设置只读
+    localStorage.setItem('market_readonly', 'true')
     loadShareData()
   } else {
+    // 清除只读模式（分享者模式）
+    localStorage.removeItem('market_readonly')
     loadStalls()
     shareForm.value.startDate = dayjs().startOf('month').format('YYYY-MM-DD')
     shareForm.value.endDate = dayjs().endOf('month').format('YYYY-MM-DD')
+  }
+})
+
+// 页面卸载时清除只读标记
+import { onUnmounted } from 'vue'
+onUnmounted(() => {
+  if (!shareId) {
+    localStorage.removeItem('market_readonly')
   }
 })
 </script>

@@ -7,6 +7,7 @@ import { RENTAL_TYPES, type RentalRecord } from '@/types'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import dayjs from 'dayjs'
 import RentalForm from '@/components/RentalForm.vue'
+import CalendarView from '@/components/CalendarView.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,6 +34,23 @@ onMounted(() => {
 // 查询参数
 const searchDate = ref(route.query.date as string || dayjs().format('YYYY-MM-DD'))
 const searchStallId = ref(route.params.stallId as string || '')
+
+// 日历月份
+const calendarDate = ref(dayjs())
+
+// 月份切换
+const prevMonth = () => {
+  calendarDate.value = calendarDate.value.subtract(1, 'month')
+}
+
+const nextMonth = () => {
+  calendarDate.value = calendarDate.value.add(1, 'month')
+}
+
+// 点击日历日期
+const handleCalendarClick = (date: string) => {
+  searchDate.value = date
+}
 
 // 表单状态
 const showForm = ref(false)
@@ -154,6 +172,30 @@ watch(() => route.query.date, (newDate) => {
       <el-button v-if="!isReadonly" type="primary" @click="openAddForm">
         + 添加记录
       </el-button>
+    </div>
+
+    <!-- 日历视图 -->
+    <div class="calendar-section" v-if="searchStallId">
+      <div class="calendar-header">
+        <h3>{{ stallStore.getStallById(searchStallId)?.name || '' }} - {{ calendarDate.format('YYYY年MM月') }}</h3>
+        <div class="month-nav">
+          <el-button size="small" @click="prevMonth">◀</el-button>
+          <el-button size="small" @click="calendarDate = dayjs()">今天</el-button>
+          <el-button size="small" @click="nextMonth">▶</el-button>
+        </div>
+      </div>
+      <CalendarView 
+        :stall-id="searchStallId"
+        :current-date="calendarDate"
+        @day-click="handleCalendarClick"
+      />
+      <!-- 图例 -->
+      <div class="legend">
+        <span class="legend-item"><span class="dot paid"></span> 已付款</span>
+        <span class="legend-item"><span class="dot unpaid"></span> 预订未付</span>
+        <span class="legend-item"><span class="dot deposit"></span> 已付定金</span>
+        <span class="legend-item"><span class="dot long-term"></span> 长租</span>
+      </div>
     </div>
 
     <!-- 筛选器 -->
@@ -364,6 +406,62 @@ watch(() => route.query.date, (newDate) => {
   gap: 8px;
   justify-content: flex-end;
 }
+
+/* 日历区域样式 */
+.calendar-section {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.calendar-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.month-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.legend {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.dot.paid { background: #52c41a; }
+.dot.unpaid { background: #faad14; }
+.dot.deposit { background: #1890ff; }
+.dot.long-term { background: #722ed1; }
 
 @media (max-width: 768px) {
   .filters {

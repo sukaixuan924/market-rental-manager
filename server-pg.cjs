@@ -392,14 +392,21 @@ const server = http.createServer(async (req, res) => {
           }
         }
         
-        // 如果没找到，尝试找第二行或包含数字较少的文本作为名字
+        // 如果没找到，优先找中文店名（如"瑞气盈门"等）
         if (!name && validTexts.length > 1) {
           for (let i = 1; i < validTexts.length; i++) {
             const t = validTexts[i].trim();
-            // 跳过太短的、纯数字的、包含特殊符号的
-            if (t.length >= 3 && !/^\d+$/.test(t) && !t.includes('￥') && !t.includes('转账')) {
-              name = t;
-              break;
+            // 跳过太短的、纯数字的、包含特殊符号的、包含"转账"或"已收款"的
+            if (t.length >= 3 && !/^\d+$/.test(t) && !t.includes('￥') && !t.includes('转账') && !t.includes('已收款') && !t.includes('已接收')) {
+              // 优先选纯中文的店名（不包含字母数字）
+              if (/^[\u4e00-\u9fa5]+$/.test(t)) {
+                name = t;
+                break;
+              }
+              // 如果还没找到，选第一个较长的文本
+              if (!name && t.length >= 4) {
+                name = t;
+              }
             }
           }
         }
